@@ -1,8 +1,11 @@
+import json
+
 from fastapi import FastAPI
 from openai import OpenAI
 from pydantic import BaseModel
 
 from config import get_settings
+from github_utils import fetch_github_context
 
 app = FastAPI()
 
@@ -23,13 +26,23 @@ def read_root():
 
 @app.post("/query")
 def answer_query(req: Req):
+    github_context = fetch_github_context(req.prompt)
+
+    if github_context:
+        prompt_with_context = (
+            f"Context from GitHub:\n"
+            f"{json.dumps(github_context, indent=2)}\n\n"
+            f"User Question:\n{req.prompt}"
+        )
+    else:
+        prompt_with_context = req.prompt
+
     response = client.responses.create(
-        input=req.prompt,
+        input=prompt_with_context,
         model="openai/gpt-oss-20b",
     )
     return {
-        "Hello": "World",
         "prompt": req.prompt,
-        "api_key": get_settings().groq_api_key,
+        "github_data": github_context,
         "response": response.output_text,
     }
